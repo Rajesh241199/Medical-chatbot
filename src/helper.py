@@ -23,7 +23,7 @@ def load_environment_variables():
     """
     load_dotenv(override=True)
 
-    pinecone_api_key = os.getenv("PINECONE_API_KEY")
+    pinecone_api_key = os.getenv("PINECONE_API_KEY", "").strip()
 
     if not pinecone_api_key:
         raise ValueError("PINECONE_API_KEY is missing. Please add it to your .env file.")
@@ -137,6 +137,7 @@ def index_documents_to_pinecone(
     embeddings = download_hugging_face_embeddings()
 
     test_vector = embeddings.embed_query("test")
+
     if len(test_vector) != EMBEDDING_DIMENSION:
         raise ValueError(
             f"Embedding dimension mismatch. Expected {EMBEDDING_DIMENSION}, got {len(test_vector)}"
