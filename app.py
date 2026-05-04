@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, render_template, request, session
 
 from langchain_ollama import ChatOllama
@@ -11,11 +13,18 @@ from src.prompt import system_prompt
 
 app = Flask(__name__)
 
-app.secret_key = "medical-chatbot-secret-key"
+# Use environment variable in production; fallback for local development
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "medical-chatbot-secret-key")
 
 
 # Simple in-memory session memory
 chat_memory = {}
+
+
+# Ollama base URL
+# Local default: http://localhost:11434
+# Docker on EC2: http://host.docker.internal:11434
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
 # Connect to existing Pinecone index
@@ -28,7 +37,8 @@ retriever = get_retriever(
 # Local Ollama LLM
 chatModel = ChatOllama(
     model="llama3.2:3b",
-    temperature=0.2
+    temperature=0.2,
+    base_url=OLLAMA_BASE_URL
 )
 
 
@@ -166,6 +176,16 @@ def update_memory(user_question, answer, memory):
 @app.route("/")
 def index():
     return render_template("chat.html")
+
+
+@app.route("/health")
+def health():
+    return {
+        "status": "ok",
+        "ollama_base_url": OLLAMA_BASE_URL,
+        "model": "llama3.2:3b",
+        "vector_db": "pinecone"
+    }
 
 
 @app.route("/get", methods=["GET", "POST"])
