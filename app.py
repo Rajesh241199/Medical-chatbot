@@ -1,5 +1,7 @@
 import os
+import traceback
 
+import requests
 from flask import Flask, render_template, request, session
 
 from langchain_ollama import ChatOllama
@@ -22,10 +24,15 @@ chat_memory = {}
 
 
 # Ollama configuration
-# Local default: http://localhost:11434
-# Docker on EC2: http://host.docker.internal:11434
+# Local/host-network Docker on EC2: http://localhost:11434
+# Docker bridge mode on EC2: http://host.docker.internal:11434
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+
+
+print("Starting Medical Chatbot app...", flush=True)
+print("OLLAMA_BASE_URL:", OLLAMA_BASE_URL, flush=True)
+print("OLLAMA_MODEL:", OLLAMA_MODEL, flush=True)
 
 
 # Connect to existing Pinecone index
@@ -189,6 +196,62 @@ def health():
     }
 
 
+@app.route("/debug/ollama")
+def debug_ollama():
+    """
+    Checks whether Flask/Docker can reach Ollama.
+    """
+    try:
+        response = requests.get(
+            f"{OLLAMA_BASE_URL}/api/tags",
+            timeout=10
+        )
+
+        return {
+            "status": "ok",
+            "ollama_base_url": OLLAMA_BASE_URL,
+            "status_code": response.status_code,
+            "response_preview": response.text[:500]
+        }
+
+    except Exception as e:
+        print("ERROR OCCURRED IN /debug/ollama", flush=True)
+        print("Error:", str(e), flush=True)
+        traceback.print_exc()
+
+        return {
+            "status": "error",
+            "ollama_base_url": OLLAMA_BASE_URL,
+            "error": str(e)
+        }, 500
+
+
+@app.route("/debug/retriever")
+def debug_retriever():
+    """
+    Checks whether Pinecone retrieval works.
+    """
+    try:
+        docs = retriever.invoke("What is Acne?")
+
+        return {
+            "status": "ok",
+            "documents_found": len(docs),
+            "first_doc_preview": docs[0].page_content[:500] if docs else None,
+            "first_doc_metadata": docs[0].metadata if docs else None
+        }
+
+    except Exception as e:
+        print("ERROR OCCURRED IN /debug/retriever", flush=True)
+        print("Error:", str(e), flush=True)
+        traceback.print_exc()
+
+        return {
+            "status": "error",
+            "error": str(e)
+        }, 500
+
+
 @app.route("/get", methods=["GET", "POST"])
 def chat():
     msg = request.form.get("msg")
@@ -201,9 +264,9 @@ def chat():
 
     contextual_question = build_contextual_question(msg, memory)
 
-    print("Original question:", msg)
-    print("Contextual question:", contextual_question)
-    print("Current topic:", memory.get("last_topic"))
+    print("Original question:", msg, flush=True)
+    print("Contextual question:", contextual_question, flush=True)
+    print("Current topic:", memory.get("last_topic"), flush=True)
 
     try:
         response = rag_chain.invoke(
@@ -216,14 +279,17 @@ def chat():
 
         update_memory(msg, answer, memory)
 
-        print("Bot response:", answer)
-        print("Updated topic:", memory.get("last_topic"))
+        print("Bot response:", answer, flush=True)
+        print("Updated topic:", memory.get("last_topic"), flush=True)
 
         return str(answer)
 
     except Exception as e:
-        print("Error:", str(e))
-        return "Something went wrong while generating the answer. Please try again.", 500
+        print("ERROR OCCURRED IN /get ROUTE", flush=True)
+        print("Error:", str(e), flush=True)
+        traceback.print_exc()
+
+        return f"Error: {str(e)}", 500
 
 
 @app.route("/clear", methods=["POST"])
