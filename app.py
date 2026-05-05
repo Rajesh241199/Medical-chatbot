@@ -21,10 +21,11 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "medical-chatbot-secret-key")
 chat_memory = {}
 
 
-# Ollama base URL
+# Ollama configuration
 # Local default: http://localhost:11434
 # Docker on EC2: http://host.docker.internal:11434
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 
 
 # Connect to existing Pinecone index
@@ -36,7 +37,7 @@ retriever = get_retriever(
 
 # Local Ollama LLM
 chatModel = ChatOllama(
-    model="llama3.2:3b",
+    model=OLLAMA_MODEL,
     temperature=0.2,
     base_url=OLLAMA_BASE_URL
 )
@@ -183,7 +184,7 @@ def health():
     return {
         "status": "ok",
         "ollama_base_url": OLLAMA_BASE_URL,
-        "model": "llama3.2:3b",
+        "model": OLLAMA_MODEL,
         "vector_db": "pinecone"
     }
 
